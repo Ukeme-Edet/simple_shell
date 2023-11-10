@@ -1,181 +1,138 @@
 #include "main.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
+
+char *name;
+int hist;
+alias_t *aliases;
+
+void sig_handler(int sig);
+int execute(char **args, char **front);
 
 /**
- * main - The main function for the simple shell project
- * Return: 0 if successful
+ * sig_handler - Prints a new prompt upon a signal.
+ * @sig: The signal.
  */
-int main(void)
+void sig_handler(int sig)
 {
-	char *line;
-	char **args;
-	int status;
+	char *new_prompt = "\n$ ";
 
-	status = 1;
-	while (status)
-	{
-		printf("> ");
-		line = read_line();
-		args = split_line(line);
-		status = execute(args);
-		free(line);
-		free(args);
-	}
-	free(line);
-	free(args);
-	return (status);
-	return (0);
+	(void)sig;
+	signal(SIGINT, sig_handler);
+	write(STDIN_FILENO, new_prompt, 3);
 }
 
 /**
- * read_line - The read_line function for the simple shell project
- * Return: 0 if successful
+ * execute - Executes a command in a child process.
+ * @args: An array of arguments.
+ * @front: A double pointer to the beginning of args.
+ *
+ * Return: If an error occurs - a corresponding error code.
+ *         O/w - The exit value of the last executed command.
  */
-char *read_line(void)
+int execute(char **args, char **front)
 {
-	char *line = NULL;
-	size_t bufsize = 0;
+	pid_t child_pid;
+	int status, flag = 0, ret = 0;
+	char *command = args[0];
 
-	if (getline(&line, &bufsize, stdin) == -1)
+	if (command[0] != '/' && command[0] != '.')
 	{
-		free(line);
-		if (feof(stdin))
-		{
-			exit(EXIT_SUCCESS);
-		}
+		flag = 1;
+		command = get_location(command);
+	}
+
+	if (!command || (access(command, F_OK) == -1))
+	{
+		if (errno == EACCES)
+			ret = (create_error(args, 126));
 		else
-		{
-			perror("hsh");
-			exit(EXIT_FAILURE);
-		}
+			ret = (create_error(args, 127));
 	}
-	return (line);
-}
-
-/**
- * split_line - The split_line function for the simple shell project
- * @line: The line passed to the function
- * Return: 0 if successful
- */
-char **split_line(char *line)
-{
-	int bufsize = 64, position = 0;
-	char **tokens = malloc(bufsize * sizeof(char *));
-	char *token;
-
-	if (!tokens)
+	else
 	{
-		fprintf(stderr, "hsh: allocation error\n");
-		exit(EXIT_FAILURE);
-	}
-	token = strtok(line, " \t\r\n\a");
-	while (token != NULL)
-	{
-		tokens[position] = token;
-		position++;
-		if (position >= bufsize)
+		child_pid = fork();
+		if (child_pid == -1)
 		{
-			bufsize += 64;
-			tokens = realloc(tokens, bufsize * sizeof(char *));
-			if (!tokens)
-			{
-				fprintf(stderr, "hsh: allocation error\n");
-				exit(EXIT_FAILURE);
-			}
-		}
-		token = strtok(NULL, " \t\r\n\a");
-	}
-	tokens[position] = NULL;
-	return (tokens);
-}
-
-/**
- * execute - The execute function for the simple shell project
- * @args: The arguments passed to the function
- * Return: 1 if successful
- */
-int execute(char **args);
-int execute(char **args)
-{
-	pid_t pid, wpid;
-	int status;
-
-	if (args[0] && strcmp(args[0], "exit") == 0)
-	{
-		free(args);
-		exit(EXIT_SUCCESS);
-	}
-	if (args[0] && strcmp(args[0], "env") == 0)
-	{
-		int i = 0;
-
-		while (environ[i])
-		{
-			printf("%s\n", environ[i]);
-			i++;
-		}
-		return (1);
-	}
-	if (args[0] && (command_exists(args[0]) || !access(args[0], F_OK)))
-	{
-		pid = fork();
-		if (pid == 0)
-		{
-			if (execvp(args[0], args) == -1)
-			{
-				perror("hsh");
-			}
-			exit(EXIT_FAILURE);
-		}
-		else if (pid < 0)
-		{
-			perror("hsh");
-		}
-		else
-		{
-			do {
-				wpid = waitpid(pid, &status, WUNTRACED);
-				if (wpid == -1)
-				{
-					perror("hsh");
-				}
-			} while (!WIFEXITED(status) && !WIFSIGNALED(status));
-		}
-	}
-	else if (args[0])
-		perror("hsh");
-	return (1);
-}
-
-/**
- * command_exists - The command_exists function for the simple shell project
- * @command: The command passed to the function
- * Return: 1 if successful
- */
-int command_exists(char *command)
-{
-	char *path = getenv("PATH");
-	char *path_copy = strdup(path);
-	char *token = strtok(path_copy, ":");
-	char *command_path;
-
-	while (token != NULL)
-	{
-		command_path = malloc(strlen(token) + strlen(command) + 2);
-		sprintf(command_path, "%s/%s", token, command);
-		if (access(command_path, F_OK || X_OK) == 0)
-		{
-			free(command_path);
-			free(path_copy);
+			if (flag)
+				free(command);
+			perror("Error child:");
 			return (1);
 		}
-		free(command_path);
-		token = strtok(NULL, ":");
+		if (child_pid == 0)
+		{
+			execve(command, args, environ);
+			if (errno == EACCES)
+				ret = (create_error(args, 126));
+			free_env();
+			free_args(args, front);
+			free_alias_list(aliases);
+			_exit(ret);
+		}
+		else
+		{
+			wait(&status);
+			ret = WEXITSTATUS(status);
+		}
 	}
-	free(path_copy);
-	return (0);
+	if (flag)
+		free(command);
+	return (ret);
+}
+
+/**
+ * main - Runs a simple UNIX command interpreter.
+ * @argc: The number of arguments supplied to the program.
+ * @argv: An array of pointers to the arguments.
+ *
+ * Return: The return value of the last executed command.
+ */
+int main(int argc, char *argv[])
+{
+	int ret = 0, retn;
+	int *exe_ret = &retn;
+	char *prompt = "$ ", *new_line = "\n";
+
+	name = argv[0];
+	hist = 1;
+	aliases = NULL;
+	signal(SIGINT, sig_handler);
+
+	*exe_ret = 0;
+	environ = _copyenv();
+	if (!environ)
+		exit(-100);
+
+	if (argc != 1)
+	{
+		ret = proc_file_commands(argv[1], exe_ret);
+		free_env();
+		free_alias_list(aliases);
+		return (*exe_ret);
+	}
+
+	if (!isatty(STDIN_FILENO))
+	{
+		while (ret != END_OF_FILE && ret != EXIT)
+			ret = handle_args(exe_ret);
+		free_env();
+		free_alias_list(aliases);
+		return (*exe_ret);
+	}
+
+	while (1)
+	{
+		write(STDOUT_FILENO, prompt, 2);
+		ret = handle_args(exe_ret);
+		if (ret == END_OF_FILE || ret == EXIT)
+		{
+			if (ret == END_OF_FILE)
+				write(STDOUT_FILENO, new_line, 1);
+			free_env();
+			free_alias_list(aliases);
+			exit(*exe_ret);
+		}
+	}
+
+	free_env();
+	free_alias_list(aliases);
+	return (*exe_ret);
 }
