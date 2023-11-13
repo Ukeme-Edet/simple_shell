@@ -5,6 +5,6 @@ int _putchar(char c);
 char *read_line(void);
 char **split_line(char *line);
 int execute(char **args);
-int shell(void);
+int command_exists(char *command);
 
 #endif /*MAIN_H */
