@@ -25,6 +25,8 @@ int main(void)
 		free(line);
 		free(args);
 	}
+	free(line);
+	free(args);
 	return (status);
 	return (0);
 }
@@ -101,7 +103,12 @@ int execute(char **args)
 	pid_t pid, wpid;
 	int status;
 
-	if (args[0] && (command_exists(args[0]) || access(args[0], F_OK) == 0))
+	if (args[0] && strcmp(args[0], "exit") == 0)
+	{
+		free(args);
+		exit(EXIT_SUCCESS);
+	}
+	if (args[0] && (command_exists(args[0]) || !access(args[0], F_OK)))
 	{
 		pid = fork();
 		if (pid == 0)
