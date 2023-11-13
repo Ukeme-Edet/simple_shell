@@ -98,6 +98,7 @@ char **split_line(char *line)
  * @args: The arguments passed to the function
  * Return: 1 if successful
  */
+int execute(char **args);
 int execute(char **args)
 {
 	pid_t pid, wpid;
@@ -107,6 +108,17 @@ int execute(char **args)
 	{
 		free(args);
 		exit(EXIT_SUCCESS);
+	}
+	if (args[0] && strcmp(args[0], "env") == 0)
+	{
+		int i = 0;
+
+		while (environ[i])
+		{
+			printf("%s\n", environ[i]);
+			i++;
+		}
+		return (1);
 	}
 	if (args[0] && (command_exists(args[0]) || !access(args[0], F_OK)))
 	{
