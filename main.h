@@ -98,12 +98,12 @@ int _strncmp(const char *s1, const char *s2, size_t n);
 /* Builtins */
 int (*get_builtin(char *command))(char **args, char **front);
 int shellby_exit(char **args, char **front);
-int shellby_env(char **args, char __attribute__((__unused__)) * *front);
-int shellby_setenv(char **args, char __attribute__((__unused__)) * *front);
-int shellby_unsetenv(char **args, char __attribute__((__unused__)) * *front);
-int shellby_cd(char **args, char __attribute__((__unused__)) * *front);
-int shellby_alias(char **args, char __attribute__((__unused__)) * *front);
-int shellby_help(char **args, char __attribute__((__unused__)) * *front);
+int shellby_env(char **args, char __attribute__((__unused__)) **front);
+int shellby_setenv(char **args, char __attribute__((__unused__)) **front);
+int shellby_unsetenv(char **args, char __attribute__((__unused__)) **front);
+int shellby_cd(char **args, char __attribute__((__unused__)) **front);
+int shellby_alias(char **args, char __attribute__((__unused__)) **front);
+int shellby_help(char **args, char __attribute__((__unused__)) **front);
 
 /* Builtin Helpers */
 char **_copyenv(void);
